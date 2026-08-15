@@ -454,3 +454,66 @@ The container is designed to deploy to AWS App Runner, Render, or any container 
 - Portfolio visualization: heatmap renders with correct colors, P&L chart has data points
 - AI chat (mocked): send a message, receive a response, trade execution appears inline
 - SSE resilience: disconnect and verify reconnection
+
+---
+
+## 13. Review Notes
+
+### Questions & Clarifications
+
+**§2 — UX / Watchlist "daily change %"**
+The watchlist panel calls for a "daily change %" column, but the simulator has no concept of a market open price — it generates prices continuously from configurable seed values. What is the baseline for this calculation? Options:
+- Use the seed price as a synthetic "open"
+- Use the first SSE price received at page load as the baseline
+- Remove the column or replace it with "change since page load"
+
+**§2 / §10 — Main chart area data source**
+The main chart shows "price over time" for the selected ticker, but there is no historical price API endpoint. The chart would be empty at first launch and fill in as SSE prices arrive — the same pattern as sparklines. Is this intentional, or should a `GET /api/prices/{ticker}/history` endpoint be added to serve the in-memory price buffer accumulated by the backend since startup?
+
+**§6 — Adding tickers not in the simulator's default set**
+The simulator only knows the 10 seeded tickers. If the user or AI adds a new ticker (e.g., PYPL) to the watchlist while using the simulator, what happens? The plan doesn't specify whether the simulator should synthesize a price for arbitrary tickers or whether the watchlist add should be rejected when a Massive API key is absent. This boundary needs to be defined.
+
+**§6 — SSE event payload shape**
+Section 6 lists the fields (ticker, price, previous price, timestamp, change direction) but doesn't specify the JSON key names. `change direction` is also derivable from `price > previous_price`, making it redundant. Recommend either specifying the exact payload schema or dropping the redundant field.
+
+**§7 — `avg_cost` recalculation formula**
+When adding to an existing position, the weighted-average cost formula should be stated explicitly so all agents implement it the same way:
+`new_avg_cost = (old_quantity × old_avg_cost + new_quantity × new_price) / (old_quantity + new_quantity)`. Also: when all shares are sold, is the `positions` row deleted, or is `quantity` set to 0 and the row retained?
+
+**§7 — Who owns the 30-second snapshot background task?**
+`portfolio_snapshots` are recorded "every 30 seconds by a background task." The plan doesn't specify whether this is a FastAPI `lifespan` task, an `asyncio` loop, or something else. It should be co-located with the market data background task for simplicity, but this should be made explicit.
+
+**§8 — Missing response schemas**
+The API table lists endpoints but not response shapes. Agents will independently invent formats, leading to frontend/backend mismatches. At minimum, the shapes for `/api/portfolio`, `/api/watchlist`, and `/api/portfolio/trade` should be specified here or in a separate API contract file.
+
+**§8 — Missing `GET /api/chat` endpoint**
+`chat_messages` are persisted to the database, but there is no endpoint to retrieve them. Without it, conversation history is lost on browser refresh even though the DB retains it. If persistence across reloads is desired, add `GET /api/chat` returning recent messages. If not, the table could be simplified to in-memory storage.
+
+**§8 — Watchlist add with unknown ticker**
+What HTTP status and error body should `POST /api/watchlist` return when the ticker is unknown to the current market data provider? This matters for UX — the frontend needs to display a sensible error.
+
+**§9 — Model identifier**
+The model is specified as `openrouter/openai/gpt-oss-120b`. This name doesn't match any publicly listed OpenRouter model slug. Please verify the exact model ID — if this is a Cerebras-hosted model it would typically use a `cerebras/` prefix via OpenRouter.
+
+**§9 — Chat history window**
+The plan loads "recent conversation history" from `chat_messages` but doesn't specify how many messages. Without a cap, very long sessions send unbounded tokens. Recommend specifying a limit (e.g., last 20 messages or last ~4,000 tokens).
+
+**§9 — `watchlist_changes` action values**
+The structured output example shows `"action": "add"`. The valid values (`"add"` / `"remove"`) should be listed explicitly so agents generate the correct enum in the Pydantic/JSON schema.
+
+**§9 — Malformed LLM response fallback**
+If the LLM returns invalid JSON or a schema violation, what does the `/api/chat` endpoint return to the frontend? The plan mentions "graceful handling" in the test strategy but doesn't define the fallback (e.g., return a generic error message as the `message` field with empty `trades`/`watchlist_changes`).
+
+---
+
+### Simplification Opportunities
+
+1. **"Why These Choices" table (§3)** — useful for human readers but noise for implementing agents. Consider moving it to a separate `planning/DECISIONS.md` so agents don't have to skip over it.
+
+2. **Redundant "shared interface" prose (§6)** — the first paragraph of §6 and the "Shared Price Cache" subsection both state that the simulator and Massive client implement the same interface. One mention is sufficient.
+
+3. **Optional Cloud Deployment note (§11)** — the Terraform/App Runner stretch goal adds length without guiding any current build task. Remove or move to a `planning/STRETCH_GOALS.md`.
+
+4. **`backend/db/` vs `db/` confusion (§4)** — agents frequently confuse these two directories (one holds SQL schema files, the other is the runtime volume mount). A one-line callout in the Key Boundaries section would prevent bugs: *"`backend/db/` = schema source code; `db/` = runtime SQLite file — never commit anything to `db/`."*
+
+5. **Recharts vs Lightweight Charts clarification (§10)** — Recharts is SVG-based, not canvas. Only Lightweight Charts (TradingView) is canvas-based. If performance matters for dense price updates, specify Lightweight Charts as the required library rather than leaving it open-ended.
