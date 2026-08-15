@@ -1,62 +1,93 @@
 # FinAlly — AI Trading Workstation
 
-A visually stunning AI-powered trading workstation that streams live market data, simulates portfolio trading, and integrates an LLM chat assistant that can analyze positions and execute trades via natural language.
+An AI-powered trading workstation that streams live market data, lets you trade a simulated portfolio, and integrates an LLM assistant that can analyze positions and execute trades through natural language.
 
-Built entirely by coding agents as a capstone project for an agentic AI coding course.
+Built as a capstone project for an agentic AI coding course — the entire application is written by orchestrated AI coding agents.
 
-## Features
+## What It Does
 
-- **Live price streaming** via SSE with green/red flash animations
-- **Simulated portfolio** — $10k virtual cash, market orders, instant fills
-- **Portfolio visualizations** — heatmap (treemap), P&L chart, positions table
-- **AI chat assistant** — analyzes holdings, suggests and auto-executes trades
-- **Watchlist management** — track tickers manually or via AI
-- **Dark terminal aesthetic** — Bloomberg-inspired, data-dense layout
+- **Live price streaming** via SSE — prices flash green/red on uptick/downtick with sparkline mini-charts
+- **Simulated portfolio** — start with $10,000 virtual cash, buy/sell at market price, instant fill
+- **Portfolio visualizations** — treemap heatmap sized by position weight, P&L chart over time
+- **AI chat assistant** — ask about your portfolio, get analysis, and have the AI execute trades or manage your watchlist automatically
 
-## Architecture
+## Tech Stack
 
-Single Docker container serving everything on port 8000:
-
-- **Frontend**: Next.js (static export) with TypeScript and Tailwind CSS
-- **Backend**: FastAPI (Python/uv) with SSE streaming
-- **Database**: SQLite with lazy initialization
-- **AI**: LiteLLM → OpenRouter (Cerebras inference) with structured outputs
-- **Market data**: Built-in GBM simulator (default) or Massive API (optional)
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js (TypeScript, static export) |
+| Backend | FastAPI (Python, managed with `uv`) |
+| Database | SQLite (lazy-initialized, volume-mounted) |
+| Real-time | Server-Sent Events (SSE) |
+| AI | LiteLLM → OpenRouter → Cerebras inference |
+| Market data | GBM simulator (default) or Polygon.io REST API |
+| Deployment | Single Docker container on port 8000 |
 
 ## Quick Start
 
 ```bash
-# Clone and configure
 cp .env.example .env
 # Add your OPENROUTER_API_KEY to .env
 
-# Run with Docker
-docker build -t finally .
-docker run -v finally-data:/app/db -p 8000:8000 --env-file .env finally
+./scripts/start_mac.sh       # macOS/Linux
+# or
+.\scripts\start_windows.ps1  # Windows PowerShell
+```
 
-# Open http://localhost:8000
+Open [http://localhost:8000](http://localhost:8000).
+
+To stop:
+
+```bash
+./scripts/stop_mac.sh
 ```
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `OPENROUTER_API_KEY` | Yes | OpenRouter API key for AI chat |
-| `MASSIVE_API_KEY` | No | Massive (Polygon.io) key for real market data; omit to use simulator |
-| `LLM_MOCK` | No | Set `true` for deterministic mock LLM responses (testing) |
+```bash
+# Required — LLM chat functionality
+OPENROUTER_API_KEY=your-key-here
 
-## Project Structure
+# Optional — real market data via Polygon.io; simulator used if absent
+MASSIVE_API_KEY=
 
+# Optional — deterministic mock LLM responses for testing
+LLM_MOCK=false
 ```
-finally/
-├── frontend/    # Next.js static export
-├── backend/     # FastAPI uv project
-├── planning/    # Project documentation and agent contracts
-├── test/        # Playwright E2E tests
-├── db/          # SQLite volume mount (runtime)
-└── scripts/     # Start/stop helpers
+
+## Market Data
+
+By default the app uses a built-in **GBM simulator** — no API key required. Prices update every ~500ms with correlated sector moves and occasional random shock events for realism.
+
+Set `MASSIVE_API_KEY` to switch to live Polygon.io data.
+
+## Development
+
+The backend market data subsystem (`backend/app/market/`) is complete with 73 passing tests and 84% coverage. A terminal demo is available:
+
+```bash
+cd backend
+uv run market_data_demo.py
 ```
+
+Run backend tests:
+
+```bash
+cd backend
+uv run pytest
+```
+
+## Project Status
+
+| Component | Status |
+|---|---|
+| Market data backend | Complete |
+| REST API + database | In progress |
+| Frontend UI | In progress |
+| AI chat integration | In progress |
+| Docker build | In progress |
+| E2E tests | In progress |
 
 ## License
 
-See [LICENSE](LICENSE).
+MIT

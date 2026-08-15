@@ -1,0 +1,18 @@
+{
+    "name": "kelvans-tools",
+    "owner": {
+        "name": "Kelvan",
+        "email": "kelvan@kelvan.com"
+    },
+    "plugins": [
+        {
+            "name": "independent-reviewer",
+            "source": "./independent-reviewer",
+            "description": "Carry out an independent review of the chnages since the last commit.",
+            "version": "1.0.0",
+            "author": {
+                "name": "Kelvan"
+            }
+        }
+    ]
+}
