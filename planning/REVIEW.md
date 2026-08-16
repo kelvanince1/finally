@@ -2,20 +2,23 @@
 
 ## Findings
 
-1. **High — The Quick Start cannot run from this repository.**  
-   `README.md:29-42` tells users to copy `.env.example` and run scripts under `scripts/`, but neither `.env.example` nor the `scripts/` directory exists in the working tree or in `HEAD`. The repository also has no Dockerfile, frontend, or application entry point that would serve port 8000. A new user following these instructions fails on the first command and cannot launch the advertised app. Until those artifacts are implemented, replace this section with the currently runnable market-data demo instructions, or add the referenced files as part of the same change.
+1. **High — The documented SSE wire format does not match the endpoint.**  
+   `planning/MARKET_INTERFACE.md:256-263` says every SSE event contains one flat `PriceUpdate` object and that clients should accumulate those objects. The implemented endpoint instead sends one object keyed by ticker containing the complete cache snapshot (`backend/app/market/stream.py:75-83`), for example `{"AAPL": {...}, "TSLA": {...}}`. A client built from the new contract will look for `event.ticker` and receive `undefined` on every message. Document the actual snapshot envelope, or change the endpoint and its tests to emit the per-ticker events promised here.
 
-2. **High — Enabling the plugin in project settings does not make it available to a fresh clone.**  
-   `.claude/settings.json:2-4` now relies entirely on `independent-reviewer@kelvans-tools`, but the change only adds a marketplace manifest and plugin source to the repository. Claude Code stores marketplace registration and installed plugin copies outside the repository; `enabledPlugins` only toggles an already installed plugin. This works on the authoring machine because a cached `1.0.0` copy is already present, but another contributor cloning the repository will not have that installation, so the Stop review hook silently ceases to be portable. Document/bootstrap the marketplace add and plugin install steps, or retain a repository-local hook that does not depend on per-user installation state.
+2. **High — The Massive last-trade timestamp unit is contradictory, and the production adapter follows the unsafe interpretation.**  
+   The Python example labels `snap.last_trade.timestamp` as Unix milliseconds at `planning/MASSIVE_API.md:73-79`, while the same document identifies that field as nanoseconds and instructs division by `1e9` at `planning/MASSIVE_API.md:122-144`. The raw example value is also nanosecond-sized. Meanwhile, `backend/app/market/massive_client.py:101-107` divides the value by only `1000`, producing timestamps roughly one million times too large if the documented API response is used. Resolve the documentation contradiction and update the adapter to normalize the actual SDK unit; otherwise Massive-backed SSE events carry unusable dates.
 
-3. **Medium — The README describes planned components as functionality that already exists.**  
-   `README.md:3-24` says the workstation streams data, trades a portfolio, integrates an LLM, and uses a Next.js/SQLite/Docker stack. In the same file, `README.md:85-89` correctly says all of those components are still in progress, and the repository currently contains only the market-data subsystem. This makes the top-level project description and “What It Does” section materially misleading. Label those sections as the target architecture/features, or limit present-tense claims to the implemented subsystem.
+3. **Medium — The documented dynamic-add behavior is false for the Massive source.**  
+   `planning/MARKET_INTERFACE.md:200-207` states that `add_ticker()` updates the cache in the same call and that the cache immediately has a seed price. That is only true for `SimulatorDataSource`; `MassiveDataSource.add_ticker()` merely appends to its polling list, so the cache remains empty until the next successful poll (up to 15 seconds by default, or indefinitely after an API failure/invalid symbol). Make the example explicitly simulator-only and document the Massive delay so REST handlers and UI code do not assume a price is immediately available.
 
-4. **Medium — The documented test command omits the development dependency set that provides pytest.**  
-   `README.md:73-78` recommends `uv run pytest`, while `pytest`, `pytest-asyncio`, and related tooling are declared only in the `dev` optional dependency group in `backend/pyproject.toml:15-21`. In a clean environment, the command does not ensure pytest is installed. Use the repository’s existing documented form, `uv run --extra dev pytest`, so the command is reproducible without relying on a globally installed executable or a previously prepared environment.
+4. **Medium — The removal/SSE contract can leave deleted tickers permanently visible in the documented client model.**  
+   `planning/MARKET_INTERFACE.md:209-211` says removal makes the SSE stream stop emitting the ticker, while `planning/MARKET_INTERFACE.md:263` tells the client to accumulate per-ticker messages. `PriceCache.remove()` does not increment `version`, so removal itself emits no event; nor does the stream send a tombstone. With the Massive source, no later event is guaranteed if polling fails or the last ticker was removed. Even after a later full-snapshot event, an accumulating client has no specified deletion signal. Define snapshot-replacement semantics or emit an explicit removal event, and increment the cache version on removal.
+
+5. **Low — Host-local metadata is included in the proposed change set.**  
+   `.DS_Store` changed as an opaque binary, and `.claude/settings.local.json:2-16` adds author-machine web permissions and sandbox preferences. Both files are currently tracked, so incidental local state will continue appearing in commits. Unless these settings are intentionally required for every contributor, restore these two changes and add `.DS_Store` plus `.claude/settings.local.json` to `.gitignore` (removing them from tracking in a dedicated cleanup).
 
 ## Verification Notes
 
-- All four changed/new JSON files parse successfully.
-- The new plugin hook file matches the locally installed cached copy, explaining why the hook works on the current machine despite finding 2.
-- A test run was attempted, but `uv` could not read an entry in the sandboxed user cache; no test result is claimed from that attempt.
+- Reviewed all tracked and untracked changes reported by `git status` against `HEAD`.
+- Cross-checked the new interface and API documents against the current market-data implementation.
+- No application code changed in this working tree, so tests were not required to evaluate the documentation-only behavior claims.

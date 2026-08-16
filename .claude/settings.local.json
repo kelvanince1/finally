@@ -1,8 +1,18 @@
 {
-    "enabledPlugins": {
-      "frontend-design@claude-plugins-official": true,
-      "context7@claude-plugins-official": true,
-      "playwright@claude-plugins-official": true
-    }
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:massive.com)",
+      "WebFetch(domain:github.com)"
+    ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
   }
-  
+}
